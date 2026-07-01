@@ -120,3 +120,17 @@ export const checkOutStudent = (studentId: string, eventId: string, providedQrKe
   }
   return false;
 };
+
+export const updateEvent = (eventId: string, updatedFields: Partial<Omit<Event, 'id' | 'organizerId'>>) => {
+  const events = getEvents();
+  const index = events.findIndex(e => e.id === eventId);
+  if (index !== -1) {
+    events[index] = {
+      ...events[index],
+      ...updatedFields,
+      status: 'pending' // Reset to pending for re-approval
+    };
+    saveEvents(events);
+  }
+};
+

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { User, Event, Registration } from '../types';
-import { getEvents, createEvent, refreshEventQr, getRegistrations, getUsers } from '../utils/storage';
+import { getEvents, createEvent, updateEvent, refreshEventQr, getRegistrations, getUsers } from '../utils/storage';
 import EventCard from './EventCard';
 import { QRCodeSVG } from 'qrcode.react';
-import { RefreshCw, Users as UsersIcon } from 'lucide-react';
+import { RefreshCw, Users as UsersIcon, Edit } from 'lucide-react';
 
 interface Props {
   user: User;
@@ -12,6 +12,7 @@ interface Props {
 const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Create Event Form State
   const [title, setTitle] = useState('');
@@ -19,7 +20,17 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
   const [maxParticipants, setMaxParticipants] = useState(100);
+  const [bannerUrl, setBannerUrl] = useState('');
   
+  // Edit Event Form State
+  const [editEventId, setEditEventId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editMaxParticipants, setEditMaxParticipants] = useState(100);
+  const [editBannerUrl, setEditBannerUrl] = useState('');
+
   // QR Modal State
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [activeQrEvent, setActiveQrEvent] = useState<Event | null>(null);
@@ -39,13 +50,48 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
     createEvent({
-      title, description, date, location, maxParticipants, organizerId: user.id
+      title, 
+      description, 
+      date, 
+      location, 
+      maxParticipants, 
+      organizerId: user.id,
+      bannerUrl: bannerUrl || undefined
     });
     setIsCreateModalOpen(false);
     loadEvents();
     
     // Reset form
-    setTitle(''); setDescription(''); setDate(''); setLocation(''); setMaxParticipants(100);
+    setTitle(''); setDescription(''); setDate(''); setLocation(''); setMaxParticipants(100); setBannerUrl('');
+  };
+
+  const openEditModal = (event: Event) => {
+    setEditEventId(event.id);
+    setEditTitle(event.title);
+    setEditDescription(event.description);
+    setEditDate(event.date);
+    setEditLocation(event.location);
+    setEditMaxParticipants(event.maxParticipants);
+    setEditBannerUrl(event.bannerUrl || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEventId) return;
+
+    updateEvent(editEventId, {
+      title: editTitle,
+      description: editDescription,
+      date: editDate,
+      location: editLocation,
+      maxParticipants: editMaxParticipants,
+      bannerUrl: editBannerUrl || undefined
+    });
+
+    setIsEditModalOpen(false);
+    loadEvents();
+    alert('Event updated and submitted for re-approval.');
   };
 
   const openQrModal = (event: Event) => {
@@ -91,9 +137,14 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
             event={event} 
             actions={
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <button className="btn btn-secondary" onClick={() => openAttendeesModal(event.id)}>
-                  <UsersIcon size={16} /> View Attendees
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openAttendeesModal(event.id)}>
+                    <UsersIcon size={16} /> Attendees
+                  </button>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openEditModal(event)}>
+                    <Edit size={16} /> Edit
+                  </button>
+                </div>
                 {event.status === 'approved' && (
                   <button className="btn btn-primary" onClick={() => openQrModal(event)}>
                     Show Check-In QR Code
@@ -135,9 +186,52 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
                 <label>Max Capacity</label>
                 <input required type="number" min={1} className="input" value={maxParticipants} onChange={e => setMaxParticipants(parseInt(e.target.value))} />
               </div>
+              <div className="form-group">
+                <label>Event Banner Image URL</label>
+                <input type="url" placeholder="https://example.com/image.jpg" className="input" value={bannerUrl} onChange={e => setBannerUrl(e.target.value)} />
+              </div>
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Submit for Approval</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Event Modal */}
+      {isEditModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>Edit Event</h3>
+            <form onSubmit={handleEditEvent}>
+              <div className="form-group">
+                <label>Event Title</label>
+                <input required className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea required className="input" rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)}></textarea>
+              </div>
+              <div className="form-group">
+                <label>Date & Time</label>
+                <input required type="datetime-local" className="input" value={editDate} onChange={e => setEditDate(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Location</label>
+                <input required className="input" value={editLocation} onChange={e => setEditLocation(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Max Capacity</label>
+                <input required type="number" min={1} className="input" value={editMaxParticipants} onChange={e => setEditMaxParticipants(parseInt(e.target.value))} />
+              </div>
+              <div className="form-group">
+                <label>Event Banner Image URL</label>
+                <input type="url" placeholder="https://example.com/image.jpg" className="input" value={editBannerUrl} onChange={e => setEditBannerUrl(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
