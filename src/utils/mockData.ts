@@ -1,30 +1,26 @@
-import type { User, Event, Registration } from '../types';
+import type { AuthAccount, StudentProfile, OrganizerProfile, AdminProfile, Event, Registration } from '../types';
 
-export const MOCK_USERS: User[] = [
-  {
-    id: 'u-student-1',
-    name: 'Nguyen Van A',
-    email: 'studentA@hcmut.edu.vn',
-    role: 'student'
-  },
-  {
-    id: 'u-student-2',
-    name: 'Tran Thi B',
-    email: 'studentB@hcmut.edu.vn',
-    role: 'student'
-  },
-  {
-    id: 'u-organizer-1',
-    name: 'CSE Faculty',
-    email: 'cse@hcmut.edu.vn',
-    role: 'organizer'
-  },
-  {
-    id: 'u-admin-1',
-    name: 'Student Affairs',
-    email: 'ctsv@hcmut.edu.vn',
-    role: 'admin'
-  }
+// Hashed version of 'password123'
+const MOCK_PASSWORD_HASH = 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f';
+
+export const MOCK_AUTH: AuthAccount[] = [
+  { id: 'u-student-1', email: 'studentA@hcmut.edu.vn', passwordHash: MOCK_PASSWORD_HASH, role: 'student' },
+  { id: 'u-student-2', email: 'studentB@hcmut.edu.vn', passwordHash: MOCK_PASSWORD_HASH, role: 'student' },
+  { id: 'u-organizer-1', email: 'cse@hcmut.edu.vn', passwordHash: MOCK_PASSWORD_HASH, role: 'organizer' },
+  { id: 'u-admin-1', email: 'ctsv@hcmut.edu.vn', passwordHash: MOCK_PASSWORD_HASH, role: 'admin' }
+];
+
+export const MOCK_STUDENTS: StudentProfile[] = [
+  { id: 'u-student-1', name: 'Nguyen Van A', email: 'studentA@hcmut.edu.vn', phone: '0901234567' },
+  { id: 'u-student-2', name: 'Tran Thi B', email: 'studentB@hcmut.edu.vn', phone: '0909876543' }
+];
+
+export const MOCK_ORGANIZERS: OrganizerProfile[] = [
+  { id: 'u-organizer-1', name: 'CSE Faculty', email: 'cse@hcmut.edu.vn', phone: '0838647256' }
+];
+
+export const MOCK_ADMINS: AdminProfile[] = [
+  { id: 'u-admin-1', name: 'Student Affairs' }
 ];
 
 export const MOCK_EVENTS: Event[] = [

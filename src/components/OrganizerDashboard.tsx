@@ -276,7 +276,9 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                    <th style={{ padding: '0.5rem' }}>Student</th>
+                    <th style={{ padding: '0.5rem' }}>Student ID</th>
+                    <th style={{ padding: '0.5rem' }}>Name</th>
+                    <th style={{ padding: '0.5rem' }}>Contact</th>
                     <th style={{ padding: '0.5rem' }}>Status</th>
                     <th style={{ padding: '0.5rem' }}>Check-in</th>
                     <th style={{ padding: '0.5rem' }}>Check-out</th>
@@ -285,7 +287,12 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
                 <tbody>
                   {activeEventRegistrations.map(reg => (
                     <tr key={reg.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.5rem' }}>{reg.user.id}</td>
                       <td style={{ padding: '0.5rem' }}>{reg.user.name}</td>
+                      <td style={{ padding: '0.5rem' }}>
+                        <div>{reg.user.email}</div>
+                        {reg.user.phone && <div style={{ color: 'var(--text-muted)' }}>{reg.user.phone}</div>}
+                      </td>
                       <td style={{ padding: '0.5rem' }}>
                         {reg.checkOutTime ? 'Finished' : reg.checkInTime ? 'Attending' : 'Registered'}
                       </td>

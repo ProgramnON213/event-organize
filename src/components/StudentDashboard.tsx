@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { User, Event, Registration } from '../types';
-import { getEvents, getRegistrations, registerForEvent, checkInStudent, checkOutStudent } from '../utils/storage';
+import { getEvents, getRegistrations, registerForEvent, checkInStudent, checkOutStudent, getUserById } from '../utils/storage';
 import EventCard from './EventCard';
 
 interface Props {
@@ -79,6 +79,9 @@ const StudentDashboard: React.FC<Props> = ({ user }) => {
 
               const isCheckedIn = !!reg.checkInTime;
               const isCheckedOut = !!reg.checkOutTime;
+              
+              // Find the organizer profile to display contact info
+              const organizer = getUserById(event.organizerId);
 
               return (
                 <EventCard 
@@ -92,6 +95,15 @@ const StudentDashboard: React.FC<Props> = ({ user }) => {
                         {isCheckedIn && !isCheckedOut && <span style={{ color: 'var(--success)', marginLeft: '0.5rem' }}>Checked In</span>}
                         {isCheckedOut && <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>Checked Out</span>}
                       </div>
+                      
+                      {organizer && (
+                        <div style={{ padding: '0.75rem', backgroundColor: '#f1f5f9', borderRadius: '0.5rem', fontSize: '0.75rem', color: 'var(--text-main)', margin: '0.5rem 0' }}>
+                          <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Organizer Contact:</strong>
+                          <div>{organizer.name}</div>
+                          {organizer.email && <div>Email: {organizer.email}</div>}
+                          {organizer.phone && <div>Phone: {organizer.phone}</div>}
+                        </div>
+                      )}
                       
                       {!isCheckedIn && (
                         <button className="btn btn-primary" onClick={() => openScanner(event.id, 'checkin')}>

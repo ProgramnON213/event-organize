@@ -15,24 +15,27 @@ A web application for organizing campus events at Ho Chi Minh City University of
 ├── .agents/
 │   └── AGENTS.md            # Project-specific rules and instructions
 ├── src/
-│   ├── types.ts             # Global TypeScript interfaces
+│   ├── types.ts             # Global TypeScript interfaces (including separated profiles)
 │   ├── main.tsx             # Application entry point
 │   ├── index.css            # Custom CSS & HCMUT Design Tokens
 │   ├── App.tsx              # View router and current active user state
 │   ├── components/
-│   │   ├── Navbar.tsx       # HCMUT Brand Header & Role Switcher Dropdown
+│   │   ├── AuthPage.tsx     # Secure Login, Signup, and Reset Password Forms
+│   │   ├── MailInboxSimulator.tsx  # Floating simulator widget displaying mock emails
+│   │   ├── DevBackendConsole.tsx   # Developer console to execute grantRole() backend method
+│   │   ├── Navbar.tsx       # HCMUT Brand Header & Profile Information
 │   │   ├── EventCard.tsx    # Card listing event info & actions based on active role
-│   │   ├── StudentDashboard.tsx   # Register for events & scan dynamic keys (check-in/out)
-│   │   ├── OrganizerDashboard.tsx # Create events, track attendance & show dynamic QR codes
+│   │   ├── StudentDashboard.tsx   # Register for events, check contact info & scan keys
+│   │   ├── OrganizerDashboard.tsx # Create events, track student contact details & show QRs
 │   │   └── AdminDashboard.tsx     # Review pending approvals & global metrics
 │   └── utils/
-│       ├── storage.ts       # LocalStorage helpers & state updates
-│       └── mockData.ts      # Initial pre-populated seed data
+│       ├── storage.ts       # LocalStorage helpers (Hashing, Auth, grantRole, Email simulation)
+│       └── mockData.ts      # Initial pre-seeded accounts & profiles (hashed passwords)
 ```
 
 ### Key Modules
-1. [types.ts](file:///d:/Download/event-organize/src/types.ts): All database records and model structures.
-2. [storage.ts](file:///d:/Download/event-organize/src/utils/storage.ts): Custom storage state provider. Contains logic for validating presence check-in/out.
+1. [types.ts](file:///d:/Download/event-organize/src/types.ts): Separated data schemas for credentials (`AuthAccount`) and isolated profiles (`StudentProfile`, `OrganizerProfile`, `AdminProfile`).
+2. [storage.ts](file:///d:/Download/event-organize/src/utils/storage.ts): Custom storage state provider. Contains logic for password hashing (SHA-256), simulated email dispatch, and backend role assignment helper `grantRole()`.
 3. [index.css](file:///d:/Download/event-organize/src/index.css): Implements the HCMUT brand theme.
 
 ---
@@ -67,9 +70,52 @@ sequenceDiagram
 
 ---
 
-## Local Storage Schemas
+## Local Storage Schemas & Privacy Rules
 
-Data is serialized to JSON and persisted under these keys:
+Data is serialized to JSON and persisted under these keys. Access to specific fields is strictly controlled in code according to user permissions:
+
+### `hcmut_auth` (Credentials Database)
+Stores account credentials. Passwords are saved as SHA-256 hex hashes.
+```typescript
+interface AuthAccount {
+  id: string;
+  email: string;
+  passwordHash: string;
+  role: 'student' | 'organizer' | 'admin';
+  resetToken?: string; // One-time token deleted immediately after use
+}
+```
+
+### `hcmut_student_profiles` (Student Database)
+Visible only to organizers and the registered students themselves.
+```typescript
+interface StudentProfile {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+```
+
+### `hcmut_organizer_profiles` (Organizer Database)
+Visible only to registered students of their events.
+```typescript
+interface OrganizerProfile {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+```
+
+### `hcmut_admin_profiles` (Admin Database)
+Admins have no contact info stored in their profiles.
+```typescript
+interface AdminProfile {
+  id: string;
+  name: string;
+}
+```
 
 ### `hcmut_events`
 ```typescript
@@ -97,6 +143,18 @@ interface Registration {
   registeredAt: number;   // Epoch timestamp
   checkInTime?: number;    // Epoch timestamp (if checked in)
   checkOutTime?: number;   // Epoch timestamp (if checked out)
+}
+```
+
+### `hcmut_inbox`
+Simulates email delivery. Contains messages dispatched for password reset operations.
+```typescript
+interface SimulatedEmail {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  timestamp: number;
 }
 ```
 

@@ -4,31 +4,50 @@ import Navbar from './components/Navbar';
 import StudentDashboard from './components/StudentDashboard';
 import OrganizerDashboard from './components/OrganizerDashboard';
 import AdminDashboard from './components/AdminDashboard';
+import AuthPage from './components/AuthPage';
+import MailInboxSimulator from './components/MailInboxSimulator';
+import DevBackendConsole from './components/DevBackendConsole';
 import type { User } from './types';
-import { initializeStorage, getCurrentUser } from './utils/storage';
+import { initializeStorage, getCurrentUser, setCurrentUser } from './utils/storage';
 
 function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUserLocal] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     initializeStorage();
-    setCurrentUser(getCurrentUser());
+    setCurrentUserLocal(getCurrentUser());
+    setIsInitializing(false);
   }, []);
 
-  const handleUserSwitch = (user: User) => {
+  const handleLogin = (user: User) => {
     setCurrentUser(user);
-    // Reload to simulate fresh state for new user
-    window.location.reload(); 
+    setCurrentUserLocal(user);
   };
 
-  if (!currentUser) return <div>Loading...</div>;
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setCurrentUserLocal(null);
+  };
+
+  if (isInitializing) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>;
+
+  if (!currentUser) {
+    return (
+      <>
+        <AuthPage onLogin={handleLogin} />
+        <MailInboxSimulator />
+        <DevBackendConsole />
+      </>
+    );
+  }
 
   return (
     <Router>
       <div className="min-h-screen bg-slate-50">
-        <Navbar currentUser={currentUser} onUserSwitch={handleUserSwitch} />
+        <Navbar currentUser={currentUser} onLogout={handleLogout} />
         
-        <main className="container" style={{ padding: '2rem 1.5rem' }}>
+        <main className="container" style={{ padding: '2rem 1.5rem', paddingBottom: '6rem' }}>
           <Routes>
             <Route path="/" element={
               currentUser.role === 'student' ? <StudentDashboard user={currentUser} /> :
@@ -38,6 +57,9 @@ function App() {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
+        
+        <MailInboxSimulator />
+        <DevBackendConsole />
       </div>
     </Router>
   );
