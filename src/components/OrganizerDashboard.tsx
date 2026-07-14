@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { User, Event, Registration } from '../types';
-import { getEvents, createEvent, updateEvent, refreshEventQr, getRegistrations, getUsers } from '../utils/storage';
+import { getEvents, createEvent, updateEvent, refreshEventQr, getRegistrations, getUserById, KEYS } from '../utils/storage';
 import EventCard from './EventCard';
 import { QRCodeSVG } from 'qrcode.react';
 import { RefreshCw, Users as UsersIcon, Edit } from 'lucide-react';
@@ -39,13 +39,34 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const [attendeesModalOpen, setAttendeesModalOpen] = useState(false);
   const [activeEventRegistrations, setActiveEventRegistrations] = useState<(Registration & { user: User })[]>([]);
 
-  const loadEvents = () => {
+  const loadEvents = useCallback(() => {
     setEvents(getEvents().filter(e => e.organizerId === user.id));
-  };
+  }, [user.id]);
 
   useEffect(() => {
     loadEvents();
-  }, [user.id]);
+
+    const handleStorageChange = (e: globalThis.Event) => {
+      const customEvent = e as unknown as CustomEvent;
+      if (customEvent.detail?.key === KEYS.EVENTS) {
+        loadEvents();
+      }
+    };
+
+    const handleCrossTabSync = (e: StorageEvent) => {
+      if (e.key === KEYS.EVENTS) {
+        loadEvents();
+      }
+    };
+
+    window.addEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+    window.addEventListener('storage', handleCrossTabSync);
+
+    return () => {
+      window.removeEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+      window.removeEventListener('storage', handleCrossTabSync);
+    };
+  }, [loadEvents]);
 
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,11 +133,13 @@ const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   const openAttendeesModal = (eventId: string) => {
     const allRegs = getRegistrations().filter(r => r.eventId === eventId);
-    const allUsers = getUsers();
-    const enriched = allRegs.map(reg => ({
-      ...reg,
-      user: allUsers.find(u => u.id === reg.studentId)!
-    }));
+    const enriched = allRegs.map(reg => {
+      const u = getUserById(reg.studentId);
+      return {
+        ...reg,
+        user: u || { id: reg.studentId, name: 'Unknown Student', role: 'student' as const }
+      };
+    });
     setActiveEventRegistrations(enriched);
     setAttendeesModalOpen(true);
   };

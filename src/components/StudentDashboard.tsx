@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { User, Event, Registration } from '../types';
-import { getEvents, getRegistrations, registerForEvent, checkInStudent, checkOutStudent, getUserById } from '../utils/storage';
+import { getEvents, getRegistrations, registerForEvent, checkInStudent, checkOutStudent, getUserById, KEYS } from '../utils/storage';
 import EventCard from './EventCard';
 
 interface Props {
@@ -18,14 +18,38 @@ const StudentDashboard: React.FC<Props> = ({ user }) => {
   const [scannedKey, setScannedKey] = useState('');
   const [scanError, setScanError] = useState('');
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setEvents(getEvents().filter(e => e.status === 'approved'));
     setRegistrations(getRegistrations().filter(r => r.studentId === user.id));
-  };
+  }, [user.id]);
 
   useEffect(() => {
     loadData();
-  }, [user.id]);
+
+    const handleStorageChange = (e: globalThis.Event) => {
+      const customEvent = e as unknown as CustomEvent;
+      if (
+        customEvent.detail?.key === KEYS.EVENTS ||
+        customEvent.detail?.key === KEYS.REGISTRATIONS
+      ) {
+        loadData();
+      }
+    };
+
+    const handleCrossTabSync = (e: StorageEvent) => {
+      if (e.key === KEYS.EVENTS || e.key === KEYS.REGISTRATIONS) {
+        loadData();
+      }
+    };
+
+    window.addEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+    window.addEventListener('storage', handleCrossTabSync);
+
+    return () => {
+      window.removeEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+      window.removeEventListener('storage', handleCrossTabSync);
+    };
+  }, [loadData]);
 
   const handleRegister = (eventId: string) => {
     registerForEvent(user.id, eventId);

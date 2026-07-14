@@ -8,7 +8,7 @@ import AuthPage from './components/AuthPage';
 import MailInboxSimulator from './components/MailInboxSimulator';
 import DevBackendConsole from './components/DevBackendConsole';
 import type { User } from './types';
-import { initializeStorage, getCurrentUser, setCurrentUser } from './utils/storage';
+import { initializeStorage, getCurrentUser, setCurrentUser, KEYS, getUserById } from './utils/storage';
 
 function App() {
   const [currentUser, setCurrentUserLocal] = useState<User | null>(null);
@@ -18,6 +18,37 @@ function App() {
     initializeStorage();
     setCurrentUserLocal(getCurrentUser());
     setIsInitializing(false);
+
+    // Sync logged-in user state reactively on profile/role updates
+    const handleStorageChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (
+        customEvent.detail?.key === KEYS.CURRENT_USER ||
+        customEvent.detail?.key === KEYS.AUTH ||
+        customEvent.detail?.key === KEYS.STUDENT_PROFILES ||
+        customEvent.detail?.key === KEYS.ORGANIZER_PROFILES ||
+        customEvent.detail?.key === KEYS.ADMIN_PROFILES
+      ) {
+        const current = getCurrentUser();
+        if (current) {
+          const updated = getUserById(current.id);
+          if (updated) {
+            setCurrentUserLocal(updated);
+            localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(updated));
+          } else {
+            setCurrentUserLocal(null);
+            setCurrentUser(null);
+          }
+        } else {
+          setCurrentUserLocal(null);
+        }
+      }
+    };
+
+    window.addEventListener('hcmut_storage_change', handleStorageChange);
+    return () => {
+      window.removeEventListener('hcmut_storage_change', handleStorageChange);
+    };
   }, []);
 
   const handleLogin = (user: User) => {

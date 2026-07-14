@@ -1,18 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { User, Event } from '../types';
-import { getEvents, updateEventStatus } from '../utils/storage';
+import { getEvents, updateEventStatus, KEYS } from '../utils/storage';
 import EventCard from './EventCard';
 
 const AdminDashboard = (_props: { user: User }) => {
   const [events, setEvents] = useState<Event[]>([]);
 
-  const loadEvents = () => {
+  const loadEvents = useCallback(() => {
     setEvents(getEvents());
-  };
+  }, []);
 
   useEffect(() => {
     loadEvents();
-  }, []);
+
+    const handleStorageChange = (e: globalThis.Event) => {
+      const customEvent = e as unknown as CustomEvent;
+      if (customEvent.detail?.key === KEYS.EVENTS) {
+        loadEvents();
+      }
+    };
+
+    const handleCrossTabSync = (e: StorageEvent) => {
+      if (e.key === KEYS.EVENTS) {
+        loadEvents();
+      }
+    };
+
+    window.addEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+    window.addEventListener('storage', handleCrossTabSync);
+
+    return () => {
+      window.removeEventListener('hcmut_storage_change' as any, handleStorageChange as any);
+      window.removeEventListener('storage', handleCrossTabSync);
+    };
+  }, [loadEvents]);
 
   const handleApprove = (eventId: string) => {
     updateEventStatus(eventId, 'approved');

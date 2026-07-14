@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getInbox } from '../utils/storage';
+import { getInbox, KEYS } from '../utils/storage';
 import type { SimulatedEmail } from '../utils/storage';
 import { Mail, X } from 'lucide-react';
 
@@ -7,12 +7,30 @@ const MailInboxSimulator: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [emails, setEmails] = useState<SimulatedEmail[]>([]);
 
-  // Periodically check for new mock emails
+  // Listen for storage changes reactively instead of polling
   useEffect(() => {
-    const interval = setInterval(() => {
-      setEmails(getInbox());
-    }, 1000);
-    return () => clearInterval(interval);
+    setEmails(getInbox());
+
+    const handleStorageChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.key === KEYS.INBOX) {
+        setEmails(getInbox());
+      }
+    };
+
+    const handleCrossTabSync = (e: StorageEvent) => {
+      if (e.key === KEYS.INBOX) {
+        setEmails(getInbox());
+      }
+    };
+
+    window.addEventListener('hcmut_storage_change', handleStorageChange);
+    window.addEventListener('storage', handleCrossTabSync);
+
+    return () => {
+      window.removeEventListener('hcmut_storage_change', handleStorageChange);
+      window.removeEventListener('storage', handleCrossTabSync);
+    };
   }, []);
 
   if (!isOpen) {
