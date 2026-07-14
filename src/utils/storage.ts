@@ -21,6 +21,38 @@ export async function hashPassword(password: string): Promise<string> {
   return hashHex;
 }
 
+// In-memory cache layer to prevent repeated expensive localStorage reads/parses
+interface StorageCache {
+  auths?: AuthAccount[];
+  students?: StudentProfile[];
+  organizers?: OrganizerProfile[];
+  admins?: AdminProfile[];
+  events?: Event[];
+  registrations?: Registration[];
+  currentUser?: User | null;
+  inbox?: SimulatedEmail[];
+}
+
+let cache: StorageCache = {};
+
+export const invalidateCaches = () => {
+  cache = {};
+};
+
+// Sync cache across tabs
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', () => {
+    invalidateCaches();
+  });
+}
+
+// Helper to notify other components of changes reactively
+const notifyChange = (key: string) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('hcmut_storage_change', { detail: { key } }));
+  }
+};
+
 // Data Initializer
 export const initializeStorage = () => {
   if (!localStorage.getItem(KEYS.AUTH)) localStorage.setItem(KEYS.AUTH, JSON.stringify(MOCK_AUTH));
@@ -30,23 +62,69 @@ export const initializeStorage = () => {
   if (!localStorage.getItem(KEYS.EVENTS)) localStorage.setItem(KEYS.EVENTS, JSON.stringify(MOCK_EVENTS));
   if (!localStorage.getItem(KEYS.REGISTRATIONS)) localStorage.setItem(KEYS.REGISTRATIONS, JSON.stringify(MOCK_REGISTRATIONS));
   if (!localStorage.getItem(KEYS.INBOX)) localStorage.setItem(KEYS.INBOX, JSON.stringify([]));
+  invalidateCaches();
 };
 
 // Getters & Setters
-export const getAuths = (): AuthAccount[] => JSON.parse(localStorage.getItem(KEYS.AUTH) || '[]');
-const saveAuths = (auths: AuthAccount[]) => localStorage.setItem(KEYS.AUTH, JSON.stringify(auths));
+export const getAuths = (): AuthAccount[] => {
+  if (!cache.auths) {
+    cache.auths = JSON.parse(localStorage.getItem(KEYS.AUTH) || '[]');
+  }
+  return cache.auths!;
+};
+const saveAuths = (auths: AuthAccount[]) => {
+  localStorage.setItem(KEYS.AUTH, JSON.stringify(auths));
+  cache.auths = auths;
+  notifyChange(KEYS.AUTH);
+};
 
-export const getStudentProfiles = (): StudentProfile[] => JSON.parse(localStorage.getItem(KEYS.STUDENT_PROFILES) || '[]');
-const saveStudentProfiles = (p: StudentProfile[]) => localStorage.setItem(KEYS.STUDENT_PROFILES, JSON.stringify(p));
+export const getStudentProfiles = (): StudentProfile[] => {
+  if (!cache.students) {
+    cache.students = JSON.parse(localStorage.getItem(KEYS.STUDENT_PROFILES) || '[]');
+  }
+  return cache.students!;
+};
+const saveStudentProfiles = (p: StudentProfile[]) => {
+  localStorage.setItem(KEYS.STUDENT_PROFILES, JSON.stringify(p));
+  cache.students = p;
+  notifyChange(KEYS.STUDENT_PROFILES);
+};
 
-export const getOrganizerProfiles = (): OrganizerProfile[] => JSON.parse(localStorage.getItem(KEYS.ORGANIZER_PROFILES) || '[]');
-const saveOrganizerProfiles = (p: OrganizerProfile[]) => localStorage.setItem(KEYS.ORGANIZER_PROFILES, JSON.stringify(p));
+export const getOrganizerProfiles = (): OrganizerProfile[] => {
+  if (!cache.organizers) {
+    cache.organizers = JSON.parse(localStorage.getItem(KEYS.ORGANIZER_PROFILES) || '[]');
+  }
+  return cache.organizers!;
+};
+const saveOrganizerProfiles = (p: OrganizerProfile[]) => {
+  localStorage.setItem(KEYS.ORGANIZER_PROFILES, JSON.stringify(p));
+  cache.organizers = p;
+  notifyChange(KEYS.ORGANIZER_PROFILES);
+};
 
-export const getAdminProfiles = (): AdminProfile[] => JSON.parse(localStorage.getItem(KEYS.ADMIN_PROFILES) || '[]');
-const saveAdminProfiles = (p: AdminProfile[]) => localStorage.setItem(KEYS.ADMIN_PROFILES, JSON.stringify(p));
+export const getAdminProfiles = (): AdminProfile[] => {
+  if (!cache.admins) {
+    cache.admins = JSON.parse(localStorage.getItem(KEYS.ADMIN_PROFILES) || '[]');
+  }
+  return cache.admins!;
+};
+const saveAdminProfiles = (p: AdminProfile[]) => {
+  localStorage.setItem(KEYS.ADMIN_PROFILES, JSON.stringify(p));
+  cache.admins = p;
+  notifyChange(KEYS.ADMIN_PROFILES);
+};
 
-export const getCurrentUser = (): User | null => JSON.parse(localStorage.getItem(KEYS.CURRENT_USER) || 'null');
-export const setCurrentUser = (user: User | null) => localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+export const getCurrentUser = (): User | null => {
+  if (cache.currentUser === undefined) {
+    cache.currentUser = JSON.parse(localStorage.getItem(KEYS.CURRENT_USER) || 'null');
+  }
+  return cache.currentUser || null;
+};
+export const setCurrentUser = (user: User | null) => {
+  localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+  cache.currentUser = user;
+  notifyChange(KEYS.CURRENT_USER);
+};
 
 // Unified User Fetcher
 export const getUserById = (id: string): User | null => {
@@ -69,9 +147,32 @@ export const getUserById = (id: string): User | null => {
   return null;
 };
 
+// Optimized to run in O(N) by mapping in-memory rather than parsing LocalStorage O(N^2) times
 export const getUsers = (): User[] => {
   const auths = getAuths();
-  return auths.map(a => getUserById(a.id)).filter(u => u !== null) as User[];
+  const students = getStudentProfiles();
+  const organizers = getOrganizerProfiles();
+  const admins = getAdminProfiles();
+
+  const studentMap = new Map(students.map(s => [s.id, s]));
+  const organizerMap = new Map(organizers.map(o => [o.id, o]));
+  const adminMap = new Map(admins.map(a => [a.id, a]));
+
+  return auths.map(auth => {
+    if (auth.role === 'student') {
+      const p = studentMap.get(auth.id);
+      return p ? { id: p.id, name: p.name, email: p.email, phone: p.phone, role: 'student' as Role } as User : null;
+    }
+    if (auth.role === 'organizer') {
+      const p = organizerMap.get(auth.id);
+      return p ? { id: p.id, name: p.name, email: p.email, phone: p.phone, role: 'organizer' as Role } as User : null;
+    }
+    if (auth.role === 'admin') {
+      const p = adminMap.get(auth.id);
+      return p ? { id: p.id, name: p.name, role: 'admin' as Role } as User : null;
+    }
+    return null;
+  }).filter((u): u is User => u !== null);
 };
 
 export const registerUser = (name: string, email: string, phone: string, passwordHash: string): boolean => {
@@ -93,7 +194,10 @@ export const generateResetToken = (email: string): string | null => {
   const index = auths.findIndex(a => a.email === email);
   if (index === -1) return null;
   
-  const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  
   auths[index].resetToken = token;
   saveAuths(auths);
   return token;
@@ -117,8 +221,6 @@ export const grantRole = (userId: string, newRole: Role, additionalData?: { name
   if (authIndex === -1) return;
   
   const oldRole = auths[authIndex].role;
-  auths[authIndex].role = newRole;
-  saveAuths(auths);
 
   // We must extract name, phone, email from the old profile if available to copy over
   let name = additionalData?.name || 'Unknown User';
@@ -131,6 +233,9 @@ export const grantRole = (userId: string, newRole: Role, additionalData?: { name
     if (!additionalData?.phone && user.phone) phone = user.phone;
     if (!additionalData?.email && user.email) email = user.email;
   }
+
+  auths[authIndex].role = newRole;
+  saveAuths(auths);
 
   // Remove old profile
   if (oldRole === 'student') saveStudentProfiles(getStudentProfiles().filter(p => p.id !== userId));
@@ -155,16 +260,32 @@ export interface SimulatedEmail {
   body: string;
   timestamp: number;
 }
-export const getInbox = (): SimulatedEmail[] => JSON.parse(localStorage.getItem(KEYS.INBOX) || '[]');
+export const getInbox = (): SimulatedEmail[] => {
+  if (!cache.inbox) {
+    cache.inbox = JSON.parse(localStorage.getItem(KEYS.INBOX) || '[]');
+  }
+  return cache.inbox!;
+};
 export const sendSimulatedEmail = (to: string, subject: string, body: string) => {
   const inbox = getInbox();
-  inbox.unshift({ id: `mail-${Date.now()}`, to, subject, body, timestamp: Date.now() });
-  localStorage.setItem(KEYS.INBOX, JSON.stringify(inbox));
+  const newInbox = [{ id: `mail-${Date.now()}`, to, subject, body, timestamp: Date.now() }, ...inbox];
+  localStorage.setItem(KEYS.INBOX, JSON.stringify(newInbox));
+  cache.inbox = newInbox;
+  notifyChange(KEYS.INBOX);
 };
 
 // Events
-export const getEvents = (): Event[] => JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
-export const saveEvents = (events: Event[]) => localStorage.setItem(KEYS.EVENTS, JSON.stringify(events));
+export const getEvents = (): Event[] => {
+  if (!cache.events) {
+    cache.events = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
+  }
+  return cache.events!;
+};
+export const saveEvents = (events: Event[]) => {
+  localStorage.setItem(KEYS.EVENTS, JSON.stringify(events));
+  cache.events = events;
+  notifyChange(KEYS.EVENTS);
+};
 
 export const createEvent = (event: Omit<Event, 'id' | 'status'>) => {
   const events = getEvents();
@@ -186,10 +307,15 @@ export const refreshEventQr = (eventId: string) => {
   const events = getEvents();
   const index = events.findIndex(e => e.id === eventId);
   if (index !== -1) {
-    events[index].qrKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const array = new Uint32Array(6);
+    crypto.getRandomValues(array);
+    const key = Array.from(array, val => chars[val % chars.length]).join('');
+    
+    events[index].qrKey = key;
     events[index].qrGeneratedAt = Date.now();
     saveEvents(events);
-    return events[index].qrKey;
+    return key;
   }
   return null;
 };
@@ -204,8 +330,17 @@ export const updateEvent = (eventId: string, updatedFields: Partial<Omit<Event, 
 };
 
 // Registrations
-export const getRegistrations = (): Registration[] => JSON.parse(localStorage.getItem(KEYS.REGISTRATIONS) || '[]');
-export const saveRegistrations = (registrations: Registration[]) => localStorage.setItem(KEYS.REGISTRATIONS, JSON.stringify(registrations));
+export const getRegistrations = (): Registration[] => {
+  if (!cache.registrations) {
+    cache.registrations = JSON.parse(localStorage.getItem(KEYS.REGISTRATIONS) || '[]');
+  }
+  return cache.registrations!;
+};
+export const saveRegistrations = (registrations: Registration[]) => {
+  localStorage.setItem(KEYS.REGISTRATIONS, JSON.stringify(registrations));
+  cache.registrations = registrations;
+  notifyChange(KEYS.REGISTRATIONS);
+};
 
 export const registerForEvent = (studentId: string, eventId: string) => {
   const regs = getRegistrations();
