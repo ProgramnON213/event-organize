@@ -35,8 +35,8 @@ A web application for organizing campus events at Ho Chi Minh City University of
 
 ### Key Modules
 1. [types.ts](file:///d:/Download/event-organize/src/types.ts): Separated data schemas for credentials (`AuthAccount`) and isolated profiles (`StudentProfile`, `OrganizerProfile`, `AdminProfile`).
-2. [storage.ts](file:///d:/Download/event-organize/src/utils/storage.ts): Custom storage state provider. Contains logic for password hashing (SHA-256), simulated email dispatch, and backend role assignment helper `grantRole()`.
-3. [index.css](file:///d:/Download/event-organize/src/index.css): Implements the HCMUT brand theme.
+2. [storage.ts](file:///d:/Download/event-organize/src/utils/storage.ts): Custom storage state provider. Contains an in-memory cache layer to optimize reads, logic for password hashing (SHA-256), CustomEvent reactive change dispatchers, and backend role assignment helper `grantRole()`.
+3. [index.css](file:///d:/Download/event-organize/src/index.css): Implements the HCMUT brand theme with premium cubic-bezier transitions.
 
 ---
 
@@ -167,6 +167,16 @@ The design is customized using CSS custom properties defined in [index.css](file
 - **Secondary Brand Color**: `--hcmut-blue-dark: #030391;` (used for navbar branding, titles, card headers)
 - **Accent Highlight**: `--hcmut-accent: #fca903;` (used for gold accents, alerts, notices)
 - **Font-Family**: `'Inter', sans-serif` loaded from Google Fonts.
+
+---
+
+## Performance & Security Hardening
+
+To make the application production-ready and optimized, the following architectural enhancements have been implemented:
+1. **Event-Driven Reactivity**: Replaced the 1-second interval local storage polling with a CustomEvent (`'hcmut_storage_change'`) emitter. Views, dashboards, and the email simulator now react immediately to database changes without blocking the main thread or causing rendering delays.
+2. **In-Memory Cache Layer**: Implemented an in-memory storage buffer in [storage.ts](file:///d:/Download/event-organize/src/utils/storage.ts) to eliminate sequential and nested LocalStorage JSON parses, making profile fetches O(1) in memory.
+3. **Cryptographically Secure Values**: Upgraded password reset tokens and QR key generation from insecure `Math.random()` to use cryptographically secure values using the browser's Web Crypto API (`crypto.getRandomValues`).
+4. **Data Isolation & Profile Retention**: Fixed details copying inside `grantRole()` to successfully preserve user attributes when granting elevated permissions.
 
 ---
 
